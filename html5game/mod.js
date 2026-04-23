@@ -5,7 +5,8 @@
     extraFishAdded: false,
     hudReady: false,
     lastSaveAt: 0,
-    loopStarted: false
+    loopStarted: false,
+    lastUiRefreshAt: 0
   };
 
   var MOD_CONFIG = {
@@ -50,6 +51,34 @@
       return null;
     }
     return window.global._Dw;
+  }
+
+  function safeStep(fn) {
+    try {
+      fn();
+    } catch (error) {
+      window.console && console.warn && console.warn("Tiny Fishing mod step failed:", error);
+    }
+  }
+
+  function saveValue(key, value) {
+    if (typeof window.cookieSet === "function") {
+      window.cookieSet("Nova Project" + key, String(value), 3650);
+    }
+  }
+
+  function seedSaveCookies() {
+    saveValue("maxFishesLvl", MOD_CONFIG.upgradeLevel);
+    saveValue("maxDepthLvl", MOD_CONFIG.upgradeLevel);
+    saveValue("earningPerMinLvl", MOD_CONFIG.upgradeLevel);
+    saveValue("moneyEarned", MOD_CONFIG.money);
+    saveValue("gems", MOD_CONFIG.gems);
+    saveValue("bestScore", 999999);
+    saveValue("hookChosenID", 7);
+    saveValue("energy", 30);
+    saveValue("TUTOR_AQUARIUM_SHOWN", 1);
+    saveValue("TUTOR_FINGER_SHOWN", 1);
+    saveValue("TUTOR_UPGR_SHOWN", 1);
   }
 
   function capCanvasScale() {
@@ -225,6 +254,8 @@
       overwriteProperty(fish, "uniq_name", def.name);
       overwriteProperty(fish, "unlocked", 1);
       overwriteProperty(fish, "earning", 1);
+      saveValue(def.name + "_unlocked", 1);
+      saveValue(def.name + "_earning", 1);
     }
 
     MOD_STATE.extraFishAdded = true;
@@ -242,6 +273,7 @@
     gameState._BG = Math.max(Number(gameState._BG || 0), MOD_CONFIG.upgradeLevel);
     gameState._CG = Math.max(Number(gameState._CG || 0), MOD_CONFIG.upgradeLevel);
     gameState._EG = Math.max(Number(gameState._EG || 0), MOD_CONFIG.upgradeLevel);
+    gameState._wJ = Math.max(Number(gameState._wJ || 0), 7);
 
     if (typeof window._ra === "function") {
       window._ra(null, null);
@@ -252,6 +284,10 @@
       if (fish) {
         overwriteProperty(fish, "unlocked", 1);
         overwriteProperty(fish, "earning", 1);
+        overwriteProperty(fish, "catched", 1);
+        saveValue(getProperty(fish, "uniq_name") + "_unlocked", 1);
+        saveValue(getProperty(fish, "uniq_name") + "_earning", 1);
+        saveValue(getProperty(fish, "uniq_name") + "_catched", 1);
       }
     }
 
@@ -260,22 +296,43 @@
       if (hook) {
         overwriteProperty(hook, "unlocked", 1);
         gameState._wJ = j;
+        saveValue(getProperty(hook, "name") + "_unlocked", 1);
       }
     }
 
+    saveValue("maxFishesLvl", gameState._BG);
+    saveValue("maxDepthLvl", gameState._CG);
+    saveValue("earningPerMinLvl", gameState._EG);
+    saveValue("moneyEarned", gameState._FG);
+    saveValue("gems", gameState._1G);
+    saveValue("bestScore", gameState._Ew);
+    saveValue("hookChosenID", gameState._wJ);
+
+    if (Date.now() - MOD_STATE.lastUiRefreshAt > 1000) {
+      if (typeof window._0a === "function") {
+        window._0a(null, null);
+      }
+      if (typeof window._A9 === "function") {
+        window._A9(null, null);
+      }
+      MOD_STATE.lastUiRefreshAt = Date.now();
+    }
+
     if (typeof window._Ab === "function" && Date.now() - MOD_STATE.lastSaveAt > 1500) {
-      window._Ab(null, null);
+      safeStep(function () {
+        window._Ab(null, null);
+      });
       MOD_STATE.lastSaveAt = Date.now();
     }
   }
 
   function modTick() {
-    capCanvasScale();
-    tuneCanvas();
-    mountHud();
-    addExtraFish();
-    unlockEverything();
-    positionHud();
+    safeStep(capCanvasScale);
+    safeStep(tuneCanvas);
+    safeStep(mountHud);
+    safeStep(addExtraFish);
+    safeStep(unlockEverything);
+    safeStep(positionHud);
   }
 
   function startModLoop() {
@@ -292,10 +349,12 @@
   if (typeof window.GameMaker_Init === "function") {
     var originalInit = window.GameMaker_Init;
     window.GameMaker_Init = function () {
+      seedSaveCookies();
       startModLoop();
       return originalInit.apply(this, arguments);
     };
   } else {
+    seedSaveCookies();
     startModLoop();
   }
 })();
